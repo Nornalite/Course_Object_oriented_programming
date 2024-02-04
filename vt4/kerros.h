@@ -9,10 +9,10 @@ class Kerros
 public:
     Kerros();
 
-    Asunto as1, as2, as3, as4;
-
     virtual void maaritaAsunnot();
     virtual double laskeKulutus();
+private:
+    Asunto as1, as2, as3, as4;
 };
 
 #endif // KERROS_H

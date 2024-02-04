@@ -10,10 +10,11 @@ class Katutaso : public Kerros
 public:
     Katutaso();
 
-    Asunto as1, as2;
-
     void maaritaAsunnot() override;
     double laskeKulutus() override;
+
+private:
+    Asunto as1, as2;
 };
 
 #endif // KATUTASO_H
