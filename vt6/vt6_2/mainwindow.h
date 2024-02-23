@@ -4,7 +4,8 @@
 #include <QMainWindow>
 #include <qpushbutton.h>
 
-enum Operations {ADD, SUBTRACT, MULTIPLY, DIVIDE, DECIMAL, POWER, ANS, ENTER, ERASE, CLEAR, LEFTNO, RIGHTNO, LEFTBOX, RIGHTBOX};
+
+enum Operations {ADD, SUBTRACT, MULTIPLY, DIVIDE, DECIMAL, POWER, ANS, ENTER, ERASE, CLEAR, LEFTBOX, RIGHTBOX};
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -19,6 +20,8 @@ public:
     ~MainWindow();
 
 private slots:
+    // Get called when a button is pressed on the calculator - which one is called depends on which
+    // QPushButton array below (numButtons or operationButtons) the clicked button belongs to
     void numberClicked();
     void operationClicked();
 
@@ -26,21 +29,30 @@ private:
     Ui::MainWindow *ui;
 
     char operand;
-    float num1, num2, result;
+    double num1, num2, result;
     bool decimalActiveNum1, decimalActiveNum2;
     signed char decimalPositionNum1, decimalPositionNum2;
-    signed char cursorPositionNum1, cursorPositionNum2;
+    //
     unsigned char activeBox;
 
+    // references to the various buttons on the calculator
     QPushButton *numButtons[10];
-    QPushButton *operationButtons[14];
+    QPushButton *operationButtons[12];
 
+    // Zero out everything
+    void ResetCalculator();
+
+    // These output the values of various variables to the screen for maximum calculator action
     void PrintAll();
     void PrintNum1();
     void PrintNum2();
     void PrintResult();
-    void PrintOperand();
 
+    void PrintOperand();
+    void CalculateResult();
+    void EraseCharacter();
+
+    // Changes which num textbox takes input at any given time & changes background colours for an extra highlight
     void Num1Active();
     void Num2Active();
 };

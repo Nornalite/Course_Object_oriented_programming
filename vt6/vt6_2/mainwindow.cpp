@@ -7,6 +7,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+    // Assigning number buttons to the numButtons[] array & connection to the numberClicked() slot
     for (unsigned int i = 0; i < sizeof(numButtons) / sizeof(numButtons[0]); i++) {
         QString name = "button" + QString::number(i);
         //qDebug() << "Trying to assign " << name;
@@ -15,6 +16,7 @@ MainWindow::MainWindow(QWidget *parent)
         QObject::connect(numButtons[i], SIGNAL(clicked(bool)), this, SLOT(numberClicked()));
     }
 
+    // Assigning operation buttons to their array
     operationButtons[ADD] = ui->buttonAdd;
     operationButtons[SUBTRACT] = ui->buttonSubtract;
     operationButtons[MULTIPLY] = ui->buttonMultiply;
@@ -25,38 +27,21 @@ MainWindow::MainWindow(QWidget *parent)
     operationButtons[ENTER] = ui->buttonEnter;
     operationButtons[ERASE] = ui->buttonErase;
     operationButtons[CLEAR] = ui->buttonClear;
-    operationButtons[LEFTNO] = ui->buttonLeftInBox;
-    operationButtons[RIGHTNO] = ui->buttonRightInBox;
-    operationButtons[LEFTBOX] = ui->buttonLeftOnCalc;
-    operationButtons[RIGHTBOX] = ui->buttonRightOnCalc;
-
-    //qDebug() << "MainWindow initialization step 2";
-
+    operationButtons[LEFTBOX] = ui->buttonLeftBox;
+    operationButtons[RIGHTBOX] = ui->buttonRightBox;
+    // & conecting them to the operationClicked() slot
     for (unsigned int i = 0; i < sizeof(operationButtons) / sizeof(operationButtons[0]); i++) {
         QObject::connect(operationButtons[i], SIGNAL(clicked(bool)), this, SLOT(operationClicked()));
     }
 
-    ui->num1->setStyleSheet("QLabel { background-color: lightgray; color: black; }");
-    ui->num2->setStyleSheet("QLabel { background-color: lightgray; color: black; }");
-    ui->operation->setStyleSheet("QLabel { background-color: lightgray; color: black; }");
-    ui->result->setStyleSheet("QLabel { background-color: lightgray; color: black; }");
+    // Colour changes to the boxes displaying numbers & operands
+    ui->num1->setStyleSheet("QLabel { background-color: lightgray; }");
+    ui->num2->setStyleSheet("QLabel { background-color: lightgray; }");
+    ui->operation->setStyleSheet("QLabel { background-color: lightgray; }");
+    ui->result->setStyleSheet("QLabel { background-color: lightgray; }");
 
-    activeBox = LEFTBOX;
-
-    num1 = 0;
-    num2 = 0;
-    result = 0;
-    operand = ' ';
-
-    decimalActiveNum1 = false;
-    decimalActiveNum2 = false;
-    decimalPositionNum1 = 0;
-    decimalPositionNum2 = 0;
-    cursorPositionNum1 = 0;
-    cursorPositionNum2 = 0;
-
-    PrintAll();
-    Num1Active();
+    // Initialization to 0
+    ResetCalculator();
 }
 
 MainWindow::~MainWindow()
@@ -66,119 +51,79 @@ MainWindow::~MainWindow()
 
 void MainWindow::numberClicked()
 {
+    // Each number button's name ends in said button's number;
+    // it's extracted and used for further input
     QString buttonNoString = sender()->objectName().last(1);
     char buttonNoChar = buttonNoString[0].toLatin1();
 
-    if (activeBox == LEFTBOX) {
-        if ((cursorPositionNum1 < decimalPositionNum1) || (decimalActiveNum1 && (cursorPositionNum1 <= decimalPositionNum1))) {
-            decimalPositionNum1++;
-            num1 = num1 + ((buttonNoChar - 48) / pow(10, decimalPositionNum1));
-        }
-        else {
-            num1 = num1 * 10 + (buttonNoChar - 48);
-        }
+    // Create pointers to the active box
+    // Honestly two if-elses would've been the sensible choice
+    double *pNum = (activeBox == LEFTBOX) ? &num1 : &num2;
+    signed char *pDecPos = (activeBox == LEFTBOX) ? &decimalPositionNum1 : &decimalPositionNum2;
+    bool *pDecActive = (activeBox == LEFTBOX) ? &decimalActiveNum1 : &decimalActiveNum2;
+    void (MainWindow::*fPointer)() = (activeBox == LEFTBOX) ? &MainWindow::PrintNum1 : &MainWindow::PrintNum2;
 
+    // For numbers with a decimal, add a fraction corresponding to the pressed key
+    // (e.g. 17.2 + 0.03 -> 17.23) and increase the decimal location accordingly
+    if (*pDecActive) {
+        *pDecPos = *pDecPos + 1;
+        *pNum = *pNum + ((buttonNoChar - 48) / pow(10, *pDecPos));
     }
-    else if (activeBox == RIGHTBOX) {
-        if ((cursorPositionNum2 < decimalPositionNum2) || (decimalActiveNum2 && (cursorPositionNum2 <= decimalPositionNum2))) {
-            decimalPositionNum2++;
-            num2 = num2 + ((buttonNoChar - 48) / pow(10, decimalPositionNum2));
-        }
-        else {
-            num2 = num2 * 10 + (buttonNoChar - 48);
-        }
+    // For plain ints multiply previous number by 10 and add the new digit
+    // (e.g 72 -> 720 + 3 -> 723)
+    else {
+        *pNum = *pNum * 10 + (buttonNoChar - 48);
     }
 
-    PrintNum1();
-    PrintNum2();
+    (this->*fPointer)();
 }
 
 void MainWindow::operationClicked()
 {
+    // Figure out which button sent the signal through comparison of addresses
     QPushButton *senderObj = qobject_cast<QPushButton*>(sender());
     unsigned char operation = sizeof(operationButtons) / sizeof(operationButtons[0]) + 1;
-
     for (unsigned int i = 0; i < sizeof(operationButtons) / sizeof(operationButtons[0]); i++) {
-        //qDebug() << senderObj;
-        //qDebug() << operationButtons[i];
         if (senderObj == operationButtons[i]) {
             operation = i;
         }
     }
 
+    // Doctor's found, time to operate
     switch (operation) {
+    // These five operands all affect the same box
     case ADD:
     case SUBTRACT:
     case MULTIPLY:
     case DIVIDE:
     case POWER:
+        Num2Active();
         operand = operation;
         PrintOperand();
         break;
     case DECIMAL:
+        // Adds a decimal to the active box
         decimalActiveNum1 = (activeBox == LEFTBOX) ? true : false;
         decimalActiveNum2 = (activeBox == RIGHTBOX) ? true : false;
         PrintNum1();
         PrintNum2();
         break;
     case ANS:
+        // Places the current result in the active box
         num1 = (activeBox == LEFTBOX) ? result : num1;
         num2 = (activeBox == RIGHTBOX) ? result : num2;
         PrintNum1();
         PrintNum2();
         break;
     case ENTER:
-        switch (operand) {
-        case ADD:
-            result = num1 + num2;
-            break;
-        case SUBTRACT:
-            result = num1 - num2;
-            break;
-        case MULTIPLY:
-            result = num1 * num2;
-            break;
-        case DIVIDE:
-            result = (num2 != 0) ? (num1 / num2) : 0;
-            break;
-        case POWER:
-            result = pow((double)num1, (double)num2);
-            break;
-        default:
-            break;
-        }
-        PrintResult();
+        // Execute calculation
+        CalculateResult();
         break;
     case ERASE:
-        if (activeBox == LEFTBOX) {
-            if (decimalActiveNum1 && cursorPositionNum1 < decimalPositionNum1) {
-
-            }
-            else {
-
-            }
-        }
-        num2 = (activeBox == RIGHTBOX) ? (num2 / 10) : num2;
-        PrintNum1();
-        PrintNum2();
+        EraseCharacter();
         break;
     case CLEAR:
-        num1 = 0;
-        num2 = 0;
-        result = 0;
-        decimalPositionNum1 = 0;
-        decimalPositionNum2 = 0;
-        decimalActiveNum1 = false;
-        decimalActiveNum2 = false;
-        PrintAll();
-        break;
-    case LEFTNO:
-        decimalPositionNum1 = (activeBox == LEFTBOX) ? decimalPositionNum1 - 1 : decimalPositionNum1;
-        decimalPositionNum2 = (activeBox == RIGHTBOX) ? decimalPositionNum2 - 1 : decimalPositionNum2;
-        break;
-    case RIGHTNO:
-        decimalPositionNum1 = (activeBox == LEFTBOX) ? decimalPositionNum1 + 1 : decimalPositionNum1;
-        decimalPositionNum2 = (activeBox == RIGHTBOX) ? decimalPositionNum2 + 1 : decimalPositionNum2;
+        ResetCalculator();
         break;
     case LEFTBOX:
         Num1Active();
@@ -189,6 +134,22 @@ void MainWindow::operationClicked()
     default:
         break;
     }
+}
+
+void MainWindow::ResetCalculator()
+{
+    num1 = 0;
+    num2 = 0;
+    result = 0;
+    operand = ' ';
+
+    decimalPositionNum1 = 0;
+    decimalPositionNum2 = 0;
+    decimalActiveNum1 = false;
+    decimalActiveNum2 = false;
+
+    PrintAll();
+    Num1Active();
 }
 
 void MainWindow::PrintAll()
@@ -202,6 +163,7 @@ void MainWindow::PrintAll()
 void MainWindow::PrintNum1()
 {
     ui->num1->setText(QString::number(num1, 'f', decimalPositionNum1));
+    // Add a decimal character to the number in "X." situations
     if (decimalActiveNum1 && decimalPositionNum1 == 0) {
         ui->num1->setText(ui->num1->text() + '.');
     }
@@ -210,6 +172,7 @@ void MainWindow::PrintNum1()
 void MainWindow::PrintNum2()
 {
     ui->num2->setText(QString::number(num2, 'f', decimalPositionNum2));
+    // Add a decimal character to the number in "X." situations
     if (decimalActiveNum2 && decimalPositionNum2 == 0) {
         ui->num2->setText(ui->num2->text() + '.');
     }
@@ -217,6 +180,7 @@ void MainWindow::PrintNum2()
 
 void MainWindow::PrintResult()
 {
+    // The result comes with as many decimals as are in the most precise number found
     char decimalNo = (decimalPositionNum1 > decimalPositionNum2) ? decimalPositionNum1 : decimalPositionNum2;
     ui->result->setText(QString::number(result, 'f', decimalNo));
 }
@@ -248,16 +212,64 @@ void MainWindow::PrintOperand()
     ui->operation->setText(QString::fromLatin1(&op, 1));
 }
 
+void MainWindow::CalculateResult()
+{
+    switch (operand) {
+    case ADD:
+        result = num1 + num2;
+        break;
+    case SUBTRACT:
+        result = num1 - num2;
+        break;
+    case MULTIPLY:
+        result = num1 * num2;
+        break;
+    case DIVIDE:
+        result = (num2 != 0) ? (num1 / num2) : 0;
+        break;
+    case POWER:
+        result = pow((double)num1, (double)num2);
+        break;
+    default:
+        break;
+    }
+    PrintResult();
+}
+
+void MainWindow::EraseCharacter()
+{
+    // Pointers to the active box
+    // Honestly two if-elses would've been the sensible choice
+    double *pNum = (activeBox == LEFTBOX) ? &num1 : &num2;
+    signed char *pDecPos = (activeBox == LEFTBOX) ? &decimalPositionNum1 : &decimalPositionNum2;
+    bool *pDecActive = (activeBox == LEFTBOX) ? &decimalActiveNum1 : &decimalActiveNum2;
+    void (MainWindow::*fPointer)() = (activeBox == LEFTBOX) ? &MainWindow::PrintNum1 : &MainWindow::PrintNum2;
+
+
+    if (*pDecActive && *pDecPos == 0) {
+        *pDecActive = false;
+    }
+    else if (!*pDecActive) {
+        *pNum = (int)(*pNum) / 10;
+    }
+    else {
+        char multiplier = pow(10, *pDecPos - 1);
+        *pNum = ((double)((unsigned long int)(*pNum * multiplier))) / multiplier;
+        *pDecPos = *pDecPos - 1;
+    }
+    (this->*fPointer)();
+}
+
 void MainWindow::Num1Active()
 {
     activeBox = LEFTBOX;
-    ui->num1->setStyleSheet("QLabel { background-color: whitesmoke; color: black; }");
-    ui->num2->setStyleSheet("QLabel { background-color: lightgray; color: black; }");
+    ui->num1->setStyleSheet("QLabel { background-color: whitesmoke; }");
+    ui->num2->setStyleSheet("QLabel { background-color: lightgray; }");
 }
 
 void MainWindow::Num2Active()
 {
     activeBox = RIGHTBOX;
-    ui->num1->setStyleSheet("QLabel { background-color: lightgray; color: black; }");
-    ui->num2->setStyleSheet("QLabel { background-color: whitesmoke; color: black; }");
+    ui->num1->setStyleSheet("QLabel { background-color: lightgray; }");
+    ui->num2->setStyleSheet("QLabel { background-color: whitesmoke; }");
 }
